@@ -353,7 +353,7 @@ void CL_MakeActive(void)
 	if (!cls.demoseeking) {
 		Con_ClearNotify ();
 	}
-	TP_ExecTrigger ("f_spawn");
+	TP_ExecTrigger("f_spawn");
 }
 
 // Cvar system calls this when a CVAR_USERINFO cvar changes
@@ -742,9 +742,16 @@ void CL_QWURL_f (void)
 	}
 	else if (!strncasecmp(command, "qtv", 3))
 	{
-		char *password = command + 4;
+		char *password = command + 3;
 
-		Cbuf_AddText(va("qtvplay %s%s\n", connection_str, ((*password) ? va(" %s", password) : "")));
+		if (*password == '/') {
+			*password = ' ';
+		}
+		else {
+			*password = '\0';
+		}
+
+		Cbuf_AddText(va("qtvplay %s%s\n", connection_str, password));
 	}
 	else
 	{

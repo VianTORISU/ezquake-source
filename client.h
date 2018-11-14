@@ -208,6 +208,8 @@ typedef struct
 
 	int				old_vw_index;	// player entities only
 	int				old_vw_frame;	// player entities only
+
+	int             contents;
 } centity_t;
 
 #define CENT_TRAILDRAWN		1
@@ -436,6 +438,7 @@ typedef struct
 	float		qtv_svversion;		///< version of qtvsv/proxy, note it float
 	int			qtv_ezquake_ext;	///< qtv ezquake extensions supported by qtvsv/proxy
 	qbool		qtv_donotbuffer;	///< do not try buffering even if not enough data
+	char        qtv_source[128];    ///< last qtv source sent (so we can re-send with challenge response)
 
 	/// \brief Tells which players are affected by a demo message.
 	///	- If multiple players are affected (dem_multiple) this will be a
@@ -618,6 +621,7 @@ typedef struct {
 	int         cif_flags;
 
 	int         scoring_system;
+	qbool       mvd_ktx_markers;
 } clientState_t;
 
 #define SCORING_SYSTEM_DEFAULT   0

@@ -2328,6 +2328,8 @@ static void SCR_HUD_Groups_Draw(hud_t *hud)
 	SCR_HUD_DrawGroup(hud, width[idx]->value, height[idx]->value, hud_group_pics[idx], pic_scalemode[idx]->value, pic_alpha[idx]->value);
 }
 
+int strcmp2(const char * s1, const char * s2);
+
 static int HUD_ComparePlayers(const void *vp1, const void *vp2)
 {
 	const sort_players_info_t *p1 = vp1;
@@ -2344,7 +2346,7 @@ static int HUD_ComparePlayers(const void *vp1, const void *vp2)
 		r = 1;
 	}
 	else if (i1->spectator && i2->spectator) {
-		r = strcmp(i1->name, i2->name);
+		r = strcmp2(i1->name, i2->name);
 	}
 	else {
 		//
@@ -2359,13 +2361,13 @@ static int HUD_ComparePlayers(const void *vp1, const void *vp2)
 			}
 
 			// sort on team name only.
-			r = (r == 0) ? -strcasecmp(p1->team->name, p2->team->name) : r;
+			r = (r == 0) ? -strcmp2(p1->team->name, p2->team->name) : r;
 		}
 
 		if (hud_sortrules_playersort.integer & 1) {
 			r = (r == 0) ? i1->frags - i2->frags : r;
 		}
-		r = (r == 0) ? -strcasecmp(i1->name, i2->name) : r;
+		r = (r == 0) ? -strcmp2(i1->name, i2->name) : r;
 	}
 
 	r = (r == 0) ? (p1->playernum - p2->playernum) : r;
@@ -2384,7 +2386,7 @@ static int HUD_CompareTeams(const void *vt1, const void *vt2)
 	if (hud_sortrules_teamsort.integer == 1) {
 		r = (t1->frags - t2->frags);
 	}
-	r = !r ? -strcasecmp(t1->name, t2->name) : r;
+	r = !r ? -strcmp2(t1->name, t2->name) : r;
 
 	// qsort() sorts ascending by default, we want descending.
 	// So negate the result.
@@ -2428,6 +2430,10 @@ static void HUD_Sort_Scoreboard(int flags)
 
 		for (i=0; i < MAX_CLIENTS; i++) {
 			if (cl.players[i].name[0] && !cl.players[i].spectator) {
+				if (cl.players[i].frags == 0 && cl.players[i].team[0] == '\0' && !strcmp(cl.players[i].name, "[ServeMe]")) {
+					continue;
+				}
+
 				// Find players team
 				for (team = 0; team < n_teams; team++) {
 					if (cl.teamplay && !strcmp(cl.players[i].team, sorted_teams[team].name) && sorted_teams[team].name[0]) {
@@ -2554,9 +2560,14 @@ static void HUD_Sort_Scoreboard(int flags)
 			// Find players team.
 			for (team = 0; team < n_teams; team++) {
 				if (!strcmp(player->team, sorted_teams[team].name) && sorted_teams[team].name[0]) {
-					if (hud_sortrules_includeself.integer == 2 && team != 0) {
+					if (hud_sortrules_includeself.integer == 1 && team > 0) {
 						sort_teams_info_t temp = sorted_teams[0];
 						sorted_teams[0] = sorted_teams[team];
+						sorted_teams[team] = temp;
+					}
+					else if (hud_sortrules_includeself.integer == 2 && team > 1) {
+						sort_teams_info_t temp = sorted_teams[1];
+						sorted_teams[1] = sorted_teams[team];
 						sorted_teams[team] = temp;
 					}
 					break;
@@ -2587,12 +2598,17 @@ static void HUD_Sort_Scoreboard(int flags)
 	if (flags & HUD_SCOREBOARD_SORT_PLAYERS) {
 		qsort(sorted_players, n_players + n_spectators, sizeof(sort_players_info_t), HUD_ComparePlayers);
 
-		if (hud_sortrules_includeself.integer) {
+		if (hud_sortrules_includeself.integer && !cl.teamplay) {
 			// Re-find player
 			active_player_position = -1;
 			for (i = 0; i < n_players + n_spectators; ++i) {
 				if (sorted_players[i].playernum == active_player) {
-					if (hud_sortrules_includeself.integer == 2 && i > 0) {
+					if (hud_sortrules_includeself.integer == 1 && i > 0) {
+						sort_players_info_t temp = sorted_players[0];
+						sorted_players[0] = sorted_players[i];
+						sorted_players[i] = temp;
+					}
+					else if (hud_sortrules_includeself.integer == 2 && i > 1) {
 						sort_players_info_t temp = sorted_players[1];
 						sorted_players[1] = sorted_players[i];
 						sorted_players[i] = temp;
@@ -4985,6 +5001,26 @@ void SCR_HUD_DrawTeamHoldInfo(hud_t *hud)
 
 static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, int x, int y, int maxname, int maxloc, qbool width_only, hud_t *hud);
 
+static int HUD_CompareTeamInfoSlots(const void* lhs_, const void* rhs_)
+{
+	int lhs = *(const int*)lhs_;
+	int rhs = *(const int*)rhs_;
+	int lhs_pos = -1;
+	int rhs_pos = -1;
+	int i;
+
+	for (i = 0; i < n_players; ++i) {
+		if (sorted_players[i].playernum == lhs) {
+			lhs_pos = i;
+		}
+		if (sorted_players[i].playernum == rhs) {
+			rhs_pos = i;
+		}
+	}
+
+	return lhs_pos - rhs_pos;
+}
+
 void SCR_HUD_DrawTeamInfo(hud_t *hud)
 {
 	int x, y, _y, width, height;
@@ -5048,6 +5084,8 @@ void SCR_HUD_DrawTeamInfo(hud_t *hud)
 		slots[slots_num++] = i;
 	}
 
+	qsort(slots, slots_num, sizeof(slots[0]), HUD_CompareTeamInfoSlots);
+
 	// well, better use fixed loc length
 	maxloc  = bound(0, hud_teaminfo_loc_width->integer, 100);
 	// limit name length
@@ -5066,7 +5104,7 @@ void SCR_HUD_DrawTeamInfo(hud_t *hud)
 	if (!cl.teamplay)  // non teamplay mode
 		return;
 
-	if (!HUD_PrepareDraw(hud, width , height, &x, &y))
+	if (!HUD_PrepareDraw(hud, width, height, &x, &y))
 		return;
 
 	_y = y ;
@@ -5079,8 +5117,8 @@ void SCR_HUD_DrawTeamInfo(hud_t *hud)
 		while (sorted_teams[k].name)
 		{
 			Draw_SString (x, _y, sorted_teams[k].name, hud_teaminfo_scale->value);
-			sprintf(tmp,"%s %i",TP_ParseFunChars("$.",false), sorted_teams[k].frags);
-			Draw_SString (x+(strlen(sorted_teams[k].name)+1)*FONTWIDTH, _y, tmp, hud_teaminfo_scale->value);
+			sprintf(tmp,"%s %4i", TP_ParseFunChars("$.",false), sorted_teams[k].frags);
+			Draw_SString(x + width - 6 * FONTWIDTH * hud_teaminfo_scale->value, _y, tmp, hud_teaminfo_scale->value);
 			_y += FONTWIDTH * hud_teaminfo_scale->value;
 			for ( j = 0; j < slots_num; j++ ) 
 			{
@@ -5198,6 +5236,15 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, int x, int y, int maxna
 						x += 3 * FONTWIDTH * scale;
 
 						break;
+					case 'f': // draw frags, space on left side
+					case 'F': // draw frags, space on right side
+						if (!width_only) {
+							snprintf(tmp, sizeof(tmp), (s[0] == 'f' ? "%3d" : "%-3d"), cl.players[i].frags);
+							Draw_SString(x, y, tmp, scale);
+						}
+						x += 3 * FONTWIDTH * scale;
+						break;
+
 					case 'a': // draw armor, padded with space on left side
 					case 'A': // draw armor, padded with space on right side
 
@@ -5379,13 +5426,16 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, int x, int y, int maxna
 void SCR_HUD_DrawItemsClock(hud_t *hud)
 {
 	extern qbool hud_editor;
+	extern const char* MVD_AnnouncerString(int line, int total, float* alpha);
 	int width, height;
 	int x, y;
+
 	static cvar_t
 		*hud_itemsclock_timelimit = NULL,
 		*hud_itemsclock_style = NULL,
 		*hud_itemsclock_scale = NULL,
-		*hud_itemsclock_filter = NULL;
+		*hud_itemsclock_filter = NULL,
+		*hud_itemsclock_backpacks = NULL;
 
 	if (hud_itemsclock_timelimit == NULL) {
 		char val[256];
@@ -5394,6 +5444,7 @@ void SCR_HUD_DrawItemsClock(hud_t *hud)
 		hud_itemsclock_style = HUD_FindVar(hud, "style");
 		hud_itemsclock_scale = HUD_FindVar(hud, "scale");
 		hud_itemsclock_filter = HUD_FindVar(hud, "filter");
+		hud_itemsclock_backpacks = HUD_FindVar(hud, "backpacks");
 
 		// Unecessary to parse the item filter string on each frame.
 		hud_itemsclock_filter->OnChange = ItemsClock_OnChangeItemFilter;
@@ -5403,7 +5454,7 @@ void SCR_HUD_DrawItemsClock(hud_t *hud)
 		Cvar_Set(hud_itemsclock_filter, val);
 	}
 
-	MVD_ClockList_TopItems_DimensionsGet(hud_itemsclock_timelimit->value, hud_itemsclock_style->integer, &width, &height, hud_itemsclock_scale->value);
+	MVD_ClockList_TopItems_DimensionsGet(hud_itemsclock_timelimit->value, hud_itemsclock_style->integer, &width, &height, hud_itemsclock_scale->value, hud_itemsclock_backpacks->integer);
 
 	if (hud_editor)
 		HUD_PrepareDraw(hud, width, LETTERHEIGHT * hud_itemsclock_scale->value, &x, &y);
@@ -5414,7 +5465,7 @@ void SCR_HUD_DrawItemsClock(hud_t *hud)
 	if (!HUD_PrepareDraw(hud, width, height, &x, &y))
 		return;
 
-	MVD_ClockList_TopItems_Draw(hud_itemsclock_timelimit->value, hud_itemsclock_style->integer, x, y, hud_itemsclock_scale->value, itemsclock_filter);
+	MVD_ClockList_TopItems_Draw(hud_itemsclock_timelimit->value, hud_itemsclock_style->integer, x, y, hud_itemsclock_scale->value, itemsclock_filter, hud_itemsclock_backpacks->integer);
 }
 
 static qbool SCR_Hud_GetScores (int* team, int* enemy, char** teamName, char** enemyName)
@@ -6783,6 +6834,7 @@ void CommonDraw_Init(void)
 		"style", "0",
 		"scale", "1",
 		"filter", "",
+		"backpacks", "0",
 		NULL
 	);
 
@@ -7100,4 +7152,12 @@ static void SCR_Hud_GameSummary(hud_t* hud)
 			x += icon_size * hud_gamesummary_scale->value;
 		}
 	}
+}
+
+const char* HUD_FirstTeam(void)
+{
+	if (n_teams) {
+		return sorted_teams[0].name;
+	}
+	return "";
 }

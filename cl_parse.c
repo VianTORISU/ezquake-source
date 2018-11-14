@@ -2035,19 +2035,21 @@ void CL_NewTranslation (int slot)
 			teammate = true;
 		}
 
-		if (teammate)
-		{
-			if (cl_teamtopcolor.integer != -1)
+		if (teammate) {
+			if (cl_teamtopcolor.integer != -1) {
 				player->topcolor = cl_teamtopcolor.value;
-			if (cl_teambottomcolor.integer != -1)
+			}
+			if (cl_teambottomcolor.integer != -1) {
 				player->bottomcolor = cl_teambottomcolor.value;
+			}
 		}
-		else if (slot != cl.playernum)
-		{
-			if (cl_enemytopcolor.integer != -1)
+		else if (slot != cl.playernum) {
+			if (cl_enemytopcolor.integer != -1) {
 				player->topcolor = cl_enemytopcolor.value;
-			if (cl_enemybottomcolor.integer != -1)
+			}
+			if (cl_enemybottomcolor.integer != -1) {
 				player->bottomcolor = cl_enemybottomcolor.value;
+			}
 		}
 	}
 
@@ -2998,9 +3000,41 @@ void CL_ParseStufftext (void)
 			return;
 		}
 	}
-	else if (!strncmp(s, "//ktx race ", sizeof("//ktx race ") - 1)) {
-		if (!strncmp(s, "//ktx race pm ", sizeof("//ktx race pm ") - 1)) {
-			cl.race_pacemaker_ent = atoi(s + sizeof("//ktx race pm ") - 1);
+	else if (!strncmp(s, "//ktx ", sizeof("//ktx ") - 1)) {
+		if (!strncmp(s, "//ktx race ", sizeof("//ktx race ") - 1)) {
+			if (!strncmp(s, "//ktx race pm ", sizeof("//ktx race pm ") - 1)) {
+				cl.race_pacemaker_ent = atoi(s + sizeof("//ktx race pm ") - 1);
+			}
+		}
+		else if (!strcmp(s, "//ktx matchstart\n")) {
+			if (cls.mvdplayback) {
+				MVDAnnouncer_MatchStart();
+			}
+		}
+		else if (!strncmp(s, "//ktx took ", sizeof("//ktx took ") - 1)) {
+			if (cls.mvdplayback) {
+				MVDAnnouncer_ItemTaken(s + 2);
+			}
+		}
+		else if (!strncmp(s, "//ktx timer ", sizeof("//ktx timer ") - 1)) {
+			if (cls.mvdplayback) {
+				MVDAnnouncer_StartTimer(s + 2);
+			}
+		}
+		else if (!strncmp(s, "//ktx drop ", sizeof("//ktx drop ") - 1)) {
+			if (cls.mvdplayback) {
+				MVDAnnouncer_PackDropped(s + 2);
+			}
+		}
+		else if (!strncmp(s, "//ktx expire ", sizeof("//ktx expire ") - 1)) {
+			if (cls.mvdplayback) {
+				MVDAnnouncer_Expired(s + 2);
+			}
+		}
+		else if (!strncmp(s, "//ktx bp ", sizeof("//ktx bp ") - 1)) {
+			if (cls.mvdplayback) {
+				MVDAnnouncer_BackpackPickup(s + 2);
+			}
 		}
 	}
 
